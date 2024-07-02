@@ -7,15 +7,18 @@ export class Consulta {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @ManyToOne(() => Paciente)
+  @ManyToOne(() => Paciente, { eager: true })
   paciente!: Paciente;
 
-  @ManyToOne(() => Medico)
+  @ManyToOne(() => Medico, { eager: true })
   medico!: Medico;
 
   @Column()
   data!: Date;
 
   @Column()
-  horario!: string; // Usar string para simplicidade, ex: '10:30'
+  horario!: string;
+
+  @Column()
+  duracao!: number;
 }

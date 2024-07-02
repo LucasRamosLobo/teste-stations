@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
-import { getRepository } from "typeorm";
+import { getRepository, Between } from "typeorm";
 import { Consulta } from "../entity/Consulta";
 import { Medico } from "../entity/Medico";
 import { Paciente } from "../entity/Paciente";
+import { isHoliday } from "../utils/holidayChecker";
+import { validateWorkingHours } from "../utils/workingHoursValidator";
 
 export class ConsultaController {
   static async cadastrarConsulta(req: Request, res: Response) {
-    const { pacienteId, medicoId, data, horario } = req.body;
+    const { pacienteId, medicoId, data, horario, duracao } = req.body;
 
     const consultaRepository = getRepository(Consulta);
     const medicoRepository = getRepository(Medico);
@@ -20,21 +22,35 @@ export class ConsultaController {
         return res.status(404).json({ error: "Médico ou Paciente não encontrado." });
       }
 
-      // Validar se o horário está dentro do expediente do médico
-      // Validar se não há conflito com outras consultas
-      const consultasNoHorario = await consultaRepository.find({
-        where: { medico: medico, data: data, horario: horario }
+      if (isHoliday(new Date(data))) {
+        return res.status(400).json({ error: "Não é permitido cadastrar consultas em feriados." });
+      }
+
+      if (!validateWorkingHours(medico, new Date(data), horario, duracao)) {
+        return res.status(400).json({ error: "Horário fora do expediente do médico." });
+      }
+
+      const horarioFinal = new Date(data);
+      horarioFinal.setMinutes(horarioFinal.getMinutes() + duracao);
+
+      const conflitos = await consultaRepository.find({
+        where: {
+          medico,
+          data,
+          horario: Between(horario, horarioFinal)
+        }
       });
 
-      if (consultasNoHorario.length > 0) {
-        return res.status(400).json({ error: "Horário já está ocupado." });
+      if (conflitos.length > 0) {
+        return res.status(400).json({ error: "Conflito de horário com outra consulta." });
       }
 
       const consulta = consultaRepository.create({
-        paciente: paciente,
-        medico: medico,
-        data: data,
-        horario: horario
+        paciente,
+        medico,
+        data,
+        horario,
+        duracao
       });
 
       await consultaRepository.save(consulta);
@@ -74,4 +90,3 @@ export class ConsultaController {
     }
   }
 }
-
