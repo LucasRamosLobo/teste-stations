@@ -15,9 +15,7 @@ export class ConsultaController {
     const pacienteRepository = getRepository(Paciente);
 
     try {
-      console.log(`Recebendo solicitação de cadastro de consulta: pacienteId=${pacienteId}, medicoId=${medicoId}, data=${data}, horario=${horario}, duracao=${duracao}`);
 
-      console.log(`Buscando médico com ID: ${medicoId}`);
       const medico = await medicoRepository.findOne({ where: { id: medicoId } });
       if (!medico) {
         console.log(`Médico com ID: ${medicoId} não encontrado.`);
