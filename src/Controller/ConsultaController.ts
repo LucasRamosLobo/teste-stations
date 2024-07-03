@@ -15,36 +15,52 @@ export class ConsultaController {
     const pacienteRepository = getRepository(Paciente);
 
     try {
-      const medico = await medicoRepository.findOne(medicoId);
-      const paciente = await pacienteRepository.findOne(pacienteId);
+      console.log(`Recebendo solicitação de cadastro de consulta: pacienteId=${pacienteId}, medicoId=${medicoId}, data=${data}, horario=${horario}, duracao=${duracao}`);
 
-      if (!medico || !paciente) {
-        return res.status(404).json({ error: "Médico ou Paciente não encontrado." });
+      console.log(`Buscando médico com ID: ${medicoId}`);
+      const medico = await medicoRepository.findOne({ where: { id: medicoId } });
+      if (!medico) {
+        console.log(`Médico com ID: ${medicoId} não encontrado.`);
+        return res.status(404).json({ error: "Médico não encontrado." });
       }
 
+      console.log(`Buscando paciente com ID: ${pacienteId}`);
+      const paciente = await pacienteRepository.findOne({ where: { id: pacienteId } });
+      if (!paciente) {
+        console.log(`Paciente com ID: ${pacienteId} não encontrado.`);
+        return res.status(404).json({ error: "Paciente não encontrado." });
+      }
+
+      console.log(`Verificando se a data é um feriado: ${data}`);
       if (isHoliday(new Date(data))) {
+        console.log(`A data ${data} é um feriado.`);
         return res.status(400).json({ error: "Não é permitido cadastrar consultas em feriados." });
       }
 
+      console.log(`Verificando horário de trabalho do médico`);
       if (!validateWorkingHours(medico, new Date(data), horario, duracao)) {
+        console.log(`Horário fora do expediente do médico.`);
         return res.status(400).json({ error: "Horário fora do expediente do médico." });
       }
 
-      const horarioFinal = new Date(data);
+      const horarioFinal = new Date(`${data}T${horario}`);
       horarioFinal.setMinutes(horarioFinal.getMinutes() + duracao);
 
+      console.log(`Verificando conflitos de horário`);
       const conflitos = await consultaRepository.find({
         where: {
           medico,
           data,
-          horario: Between(horario, horarioFinal)
+          horario: Between(horario, horarioFinal.toISOString().split('T')[1])
         }
       });
 
       if (conflitos.length > 0) {
+        console.log(`Conflito de horário com outra consulta.`);
         return res.status(400).json({ error: "Conflito de horário com outra consulta." });
       }
 
+      console.log(`Criando consulta`);
       const consulta = consultaRepository.create({
         paciente,
         medico,
@@ -53,9 +69,16 @@ export class ConsultaController {
         duracao
       });
 
+      console.log(`Salvando consulta no banco de dados`);
       await consultaRepository.save(consulta);
+      console.log(`Consulta criada com sucesso: ${JSON.stringify(consulta)}`);
       res.status(201).json(consulta);
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error(`Erro ao cadastrar consulta: ${error.message}`, error);
+      } else {
+        console.error(`Erro ao cadastrar consulta: ${error}`);
+      }
       res.status(500).json({ error: "Erro ao cadastrar consulta." });
     }
   }
